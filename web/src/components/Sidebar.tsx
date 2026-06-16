@@ -8,7 +8,7 @@ import { signOut, useSession } from 'next-auth/react';
 const NAV_GROUPS = [
   {
     label: '메인',
-    links: [{ href: '/', label: '대시보드', icon: '🏠', accent: '#3b82f6' }],
+    links: [{ href: '/dashboard', label: '대시보드', icon: '🏠', accent: '#3b82f6' }],
   },
   {
     label: '클랜 관리',

@@ -4,7 +4,12 @@ import { authOptions } from '@/lib/auth';
 import { Sidebar } from '@/components/Sidebar';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const session = await getServerSession(authOptions);
+  let session = null;
+  try {
+    session = await getServerSession(authOptions);
+  } catch {
+    redirect('/login');
+  }
   if (!session) redirect('/login');
 
   return (

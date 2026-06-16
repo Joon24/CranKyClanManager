@@ -52,7 +52,7 @@ function LoginContent() {
 
         <button
           className="btn btn-primary"
-          onClick={() => signIn('discord', { callbackUrl: '/' })}
+          onClick={() => signIn('discord', { callbackUrl: '/dashboard' })}
         >
           Discord 로그인
         </button>
