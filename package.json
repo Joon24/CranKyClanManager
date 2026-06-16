@@ -1,0 +1,20 @@
+{
+  "name": "cranky-clan-manager",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CranKy Clan Manager - Discord Bot + Web Admin",
+  "workspaces": [
+    "bot",
+    "web"
+  ],
+  "scripts": {
+    "dev:bot": "npm run dev --workspace=bot",
+    "dev:web": "npm run dev --workspace=web",
+    "build:bot": "npm run build --workspace=bot",
+    "build:web": "npm run build --workspace=web",
+    "start:bot": "npm run start --workspace=bot"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3"
+  }
+}
