@@ -31,6 +31,6 @@ export const config = {
   leaveWebhookUrl: optional('DISCORD_LEAVE_WEBHOOK_URL'),
   nexonApiKey: optional('NEXON_OPEN_API_KEY'),
   statusReportChannelId: optional('STATUS_REPORT_CHANNEL_ID'),
-  botApiPort: parseInt(process.env.BOT_API_PORT ?? '3001', 10),
+  botApiPort: parseInt(process.env.PORT ?? process.env.BOT_API_PORT ?? '3001', 10),
   internalApiSecret: required('INTERNAL_API_SECRET'),
 };

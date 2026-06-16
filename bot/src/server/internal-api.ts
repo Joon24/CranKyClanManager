@@ -33,6 +33,11 @@ function checkAuth(req: IncomingMessage): boolean {
 
 export function startInternalApi(client: Client) {
   const server = createServer(async (req, res) => {
+    if (req.url === '/health') {
+      json(res, 200, { ok: true });
+      return;
+    }
+
     if (!req.url?.startsWith('/internal/')) {
       json(res, 404, { error: 'Not found' });
       return;
@@ -157,8 +162,9 @@ export function startInternalApi(client: Client) {
     }
   });
 
-  server.listen(config.botApiPort, '127.0.0.1', () => {
-    console.log(`Internal API listening on http://127.0.0.1:${config.botApiPort}`);
+  const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
+  server.listen(config.botApiPort, host, () => {
+    console.log(`Internal API listening on http://${host}:${config.botApiPort}`);
   });
 
   server.on('error', (err: NodeJS.ErrnoException) => {

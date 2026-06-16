@@ -9,21 +9,26 @@ function botHeaders(): Record<string, string> {
 }
 
 async function callBot<T>(path: string, body: Record<string, unknown>): Promise<T> {
-  const res = await fetch(`${BOT_API_URL}${path}`, {
-    method: 'POST',
-    headers: botHeaders(),
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BOT_API_URL}${path}`, {
+      method: 'POST',
+      headers: botHeaders(),
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    throw new Error(botConnectionError(e));
+  }
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401) {
       throw new Error(
-        '봇 연동 인증 실패입니다. 봇이 실행 중인지, bot/.env와 web/.env.local의 INTERNAL_API_SECRET이 동일한지 확인해 주세요.'
+        '봇 연동 인증 실패입니다. bot/.env와 Vercel INTERNAL_API_SECRET이 동일한지 확인해 주세요.'
       );
     }
     if (res.status === 404 || res.status === 502) {
-      throw new Error('봇이 실행되지 않았습니다. npm run dev:bot 으로 봇을 먼저 실행해 주세요.');
+      throw new Error('봇 Internal API에 연결할 수 없습니다. 봇 배포 상태와 BOT_API_URL을 확인해 주세요.');
     }
     const raw = (data as { error?: string }).error ?? 'Bot API 호출 실패';
     throw new Error(translateBotError(raw));
@@ -55,10 +60,29 @@ function translateBotError(message: string): string {
   return message;
 }
 
+function botConnectionError(cause: unknown): string {
+  const msg = cause instanceof Error ? cause.message : String(cause);
+  const isLocal = /localhost|127\.0\.0\.1/.test(BOT_API_URL);
+  if (isLocal) {
+    return [
+      '웹 서버에서 봇 API(localhost)에 연결할 수 없습니다.',
+      'Vercel 등 클라우드 웹에서는 BOT_API_URL을 Railway 등에 배포된 봇 공개 URL로 설정해야 합니다.',
+      '로컬 개발 시에는 web도 localhost:3000에서 실행해 주세요.',
+    ].join(' ');
+  }
+  return `봇 API 연결 실패 (${BOT_API_URL}): ${msg}`;
+}
+
+async function botFetch(path: string): Promise<Response> {
+  try {
+    return await fetch(`${BOT_API_URL}${path}`, { headers: botHeaders() });
+  } catch (e) {
+    throw new Error(botConnectionError(e));
+  }
+}
+
 export async function botGetRoles(): Promise<{ id: string; name: string; color: string }[]> {
-  const res = await fetch(`${BOT_API_URL}/internal/roles`, {
-    headers: botHeaders(),
-  });
+  const res = await botFetch('/internal/roles');
   const data = await res.json();
   if (!res.ok) {
     throw new Error((data as { error?: string }).error ?? '역할 목록 조회 실패');
@@ -74,13 +98,11 @@ export interface BotClanMember {
 }
 
 export async function botGetClanMembers(): Promise<BotClanMember[]> {
-  const res = await fetch(`${BOT_API_URL}/internal/clan-members`, {
-    headers: botHeaders(),
-  });
+  const res = await botFetch('/internal/clan-members');
   const data = await res.json();
   if (!res.ok) {
     if (res.status === 404 || res.status === 502) {
-      throw new Error('봇이 실행되지 않았습니다. npm run dev:bot 으로 봇을 먼저 실행해 주세요.');
+      throw new Error('봇 Internal API에 연결할 수 없습니다. 봇 배포 상태와 BOT_API_URL을 확인해 주세요.');
     }
     throw new Error((data as { error?: string }).error ?? 'Discord 멤버 조회 실패');
   }
@@ -97,13 +119,11 @@ export interface BotChannel {
 }
 
 export async function botGetChannels(): Promise<BotChannel[]> {
-  const res = await fetch(`${BOT_API_URL}/internal/channels`, {
-    headers: botHeaders(),
-  });
+  const res = await botFetch('/internal/channels');
   const data = await res.json();
   if (!res.ok) {
     if (res.status === 404 || res.status === 502) {
-      throw new Error('봇이 실행되지 않았습니다. npm run dev:bot 으로 봇을 먼저 실행해 주세요.');
+      throw new Error('봇 Internal API에 연결할 수 없습니다. 봇이 배포되어 실행 중인지, BOT_API_URL이 올바른지 확인해 주세요.');
     }
     throw new Error((data as { error?: string }).error ?? '채널 목록 조회 실패');
   }
