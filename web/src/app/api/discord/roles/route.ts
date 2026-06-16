@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/api-auth';
 import { botGetRoles } from '@/lib/bot-api';
+import { getKnownClanRoles } from '@/lib/discord-roles';
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -8,11 +9,12 @@ export async function GET() {
 
   try {
     const roles = await botGetRoles();
-    return NextResponse.json(roles);
-  } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : '역할 목록 조회 실패' },
-      { status: 500 }
-    );
+    const knownIds = new Set(getKnownClanRoles().map((r) => r.id));
+    const clanRoles = roles.filter((r) => knownIds.has(r.id));
+    if (clanRoles.length > 0) return NextResponse.json(clanRoles);
+  } catch {
+    // 봇 미연결(배포 환경 등) — 아래 폴백 사용
   }
+
+  return NextResponse.json(getKnownClanRoles());
 }

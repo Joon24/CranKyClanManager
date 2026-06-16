@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SuspicionBadge } from '@/components/SuspicionBadge';
+import { CLAN_ROLE_OPTIONS, clanRoleLabel } from '@/lib/clan-role-labels';
 
 interface DiscordRole {
   id: string;
@@ -94,11 +95,17 @@ export default function MembersPage() {
     fetch('/api/discord/roles')
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data)) setRoles(data);
-      });
+        if (Array.isArray(data) && data.length > 0) {
+          setRoles(data);
+        } else {
+          setRoles(CLAN_ROLE_OPTIONS);
+        }
+      })
+      .catch(() => setRoles(CLAN_ROLE_OPTIONS));
   }, [loadMembers]);
 
-  const roleName = (roleId: string) => roles.find((r) => r.id === roleId)?.name ?? roleId;
+  const roleName = (roleId: string) =>
+    roles.find((r) => r.id === roleId)?.name ?? clanRoleLabel(roleId);
 
   const displayName = (m: Member) => m.sudden_nickname ?? m.server_nickname ?? '';
 
@@ -291,14 +298,11 @@ export default function MembersPage() {
                         }}
                       >
                         <option value="">역할 선택</option>
-                        {roles.map((r) => (
+                        {(roles.length > 0 ? roles : CLAN_ROLE_OPTIONS).map((r) => (
                           <option key={r.id} value={r.id}>
                             {r.name}
                           </option>
                         ))}
-                        {m.role && !roles.find((r) => r.id === m.role) && (
-                          <option value={m.role}>{roleName(m.role)}</option>
-                        )}
                       </select>
                     </td>
                     <td>{syncingStats ? '...' : stats?.kd != null ? stats.kd : '-'}</td>
