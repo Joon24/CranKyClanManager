@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/api-auth';
+import { requireAdmin, getAdminDisplayName } from '@/lib/api-auth';
 import { botSendEmbed } from '@/lib/bot-api';
 import { logActivity } from '@/lib/supabase';
 import type { EmbedMessage } from '@/lib/embed-types';
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   }
 
   const payload = toDiscordPayload(message);
-  const adminName = auth.session!.user!.username ?? '관리자';
+  const adminName = getAdminDisplayName(auth.session!);
 
   try {
     const result = await botSendEmbed({

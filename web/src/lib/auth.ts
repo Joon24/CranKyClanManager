@@ -54,30 +54,29 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, account, user }) {
       if (account?.access_token) {
         token.accessToken = account.access_token;
+      }
 
-        const discordUser = await fetchDiscordUser(account.access_token);
+      if (token.accessToken) {
+        const discordUser = await fetchDiscordUser(token.accessToken as string);
 
         if (discordUser) {
           token.discordId = discordUser.id;
           token.username = discordUser.username;
-          // Discord 좌하단 패널과 동일: 전역 표시 이름(global_name) 우선
           token.displayName =
             discordUser.global_name?.trim() || discordUser.username;
           token.name = token.displayName;
           token.picture = discordAvatarUrl(discordUser.id, discordUser.avatar);
         }
-      } else if (token.accessToken) {
-        const discordUser = await fetchDiscordUser(token.accessToken as string);
-        if (discordUser) {
-          token.discordId = discordUser.id;
-          token.username = discordUser.username;
-          token.displayName =
-            discordUser.global_name?.trim() || discordUser.username;
-          token.name = token.displayName;
-          token.picture = discordAvatarUrl(discordUser.id, discordUser.avatar);
+
+        const member = await fetchGuildMember(token.accessToken as string);
+        if (member) {
+          token.serverNickname =
+            member.nick?.trim() ||
+            (token.displayName as string) ||
+            (token.username as string);
         }
       } else if (user) {
         if (!token.picture && user.image) token.picture = user.image;
@@ -90,7 +89,9 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.discordId = token.discordId as string;
         session.user.username = token.username as string;
+        session.user.serverNickname = token.serverNickname as string | undefined;
         session.user.name =
+          (token.serverNickname as string) ??
           (token.displayName as string) ??
           (token.name as string) ??
           session.user.name;

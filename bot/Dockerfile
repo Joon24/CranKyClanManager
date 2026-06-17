@@ -1,16 +1,14 @@
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends fontconfig \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-COPY bot/package.json ./bot/
-COPY web/package.json ./web/
+COPY bot/package.json ./
+RUN npm install
 
-RUN npm ci --workspace=bot --omit=dev
-
-COPY bot/ ./bot/
-
-WORKDIR /app/bot
+COPY bot/ ./
 RUN npm run build
 
 ENV NODE_ENV=production

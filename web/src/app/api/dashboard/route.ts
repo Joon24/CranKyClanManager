@@ -17,12 +17,14 @@ export async function GET() {
     { count: totalMembers },
     { count: pendingApps },
     { count: todayJoins },
-    { data: warningUsers },
+    { data: warningRows },
     { count: reviewTargets },
     { data: recentLogs },
     { data: pendingList },
     { data: approvedUsers },
     { data: weekUsers },
+    { data: todayJoinList },
+    { data: reviewTargetList },
   ] = await Promise.all([
     supabase
       .from('users')
@@ -36,7 +38,7 @@ export async function GET() {
       .eq('status', 'approved')
       .or('member_type.eq.member,member_type.is.null')
       .gte('created_at', today.toISOString()),
-    supabase.from('warnings').select('user_id'),
+    supabase.from('warnings').select('user_id, point, reason, created_at'),
     supabase
       .from('match_stats')
       .select('*', { count: 'exact', head: true })
@@ -59,9 +61,92 @@ export async function GET() {
       .eq('status', 'approved')
       .or('member_type.eq.member,member_type.is.null')
       .gte('created_at', weekAgo.toISOString()),
+    supabase
+      .from('users')
+      .select('id, sudden_nickname, server_nickname, position, created_at')
+      .eq('status', 'approved')
+      .or('member_type.eq.member,member_type.is.null')
+      .gte('created_at', today.toISOString())
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('match_stats')
+      .select(
+        'suspicion_score, suspicion_level, kd, win_rate, users(id, sudden_nickname, server_nickname, position)'
+      )
+      .eq('suspicion_level', 'review')
+      .order('suspicion_score', { ascending: false }),
   ]);
 
-  const warningUserIds = new Set((warningUsers ?? []).map((w) => w.user_id));
+  const warningUserIds = new Set((warningRows ?? []).map((w) => w.user_id));
+
+  const warningByUser = new Map<
+    string,
+    { count: number; points: number; latestReason: string; latestAt: string }
+  >();
+  for (const row of warningRows ?? []) {
+    const current = warningByUser.get(row.user_id) ?? {
+      count: 0,
+      points: 0,
+      latestReason: row.reason,
+      latestAt: row.created_at,
+    };
+    current.count += 1;
+    current.points += row.point ?? 1;
+    if (row.created_at >= current.latestAt) {
+      current.latestReason = row.reason;
+      current.latestAt = row.created_at;
+    }
+    warningByUser.set(row.user_id, current);
+  }
+
+  let warningUserList: {
+    id: string;
+    sudden_nickname: string;
+    server_nickname: string | null;
+    position: string;
+    warning_count: number;
+    warning_points: number;
+    latest_reason: string;
+  }[] = [];
+
+  if (warningByUser.size > 0) {
+    const { data: warnedUsers } = await supabase
+      .from('users')
+      .select('id, sudden_nickname, server_nickname, position')
+      .eq('status', 'approved')
+      .in('id', [...warningByUser.keys()]);
+
+    warningUserList = (warnedUsers ?? [])
+      .map((user) => {
+        const stats = warningByUser.get(user.id)!;
+        return {
+          id: user.id,
+          sudden_nickname: user.sudden_nickname,
+          server_nickname: user.server_nickname,
+          position: user.position,
+          warning_count: stats.count,
+          warning_points: stats.points,
+          latest_reason: stats.latestReason,
+        };
+      })
+      .sort((a, b) => b.warning_points - a.warning_points);
+  }
+
+  const reviewList = (reviewTargetList ?? [])
+    .map((row) => {
+      const user = Array.isArray(row.users) ? row.users[0] : row.users;
+      if (!user) return null;
+      return {
+        id: user.id,
+        sudden_nickname: user.sudden_nickname,
+        server_nickname: user.server_nickname,
+        position: user.position,
+        suspicion_score: row.suspicion_score,
+        kd: row.kd,
+        win_rate: row.win_rate,
+      };
+    })
+    .filter(Boolean);
 
   const positionCount = { S: 0, R: 0, M: 0, T: 0, other: 0 };
   for (const u of approvedUsers ?? []) {
@@ -100,5 +185,8 @@ export async function GET() {
     maxTrend,
     recentLogs: recentLogs ?? [],
     pendingList: pendingList ?? [],
+    todayJoinList: todayJoinList ?? [],
+    warningUserList,
+    reviewTargetList: reviewList,
   });
 }

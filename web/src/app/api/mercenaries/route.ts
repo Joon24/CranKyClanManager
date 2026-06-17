@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/api-auth';
+import { requireAdmin, getAdminDisplayName } from '@/lib/api-auth';
 import { supabase, logActivity } from '@/lib/supabase';
 import { adminWebhook } from '@/lib/webhook';
 import { botChangeRole } from '@/lib/bot-api';
 import { getMercenaryRoleId } from '@/lib/discord-roles';
+import { discordDefaultAvatarUrl, formatMemberLogDate } from '@shared/member-log-embed';
 
 function isMercenaryContext(memberType: string | null | undefined, context?: string) {
   return memberType === 'mercenary' || context === 'mercenary';
@@ -44,7 +45,7 @@ export async function PATCH(req: Request) {
   if (auth.error) return auth.error;
 
   const body = await req.json();
-  const adminName = auth.session!.user!.username ?? '관리자';
+  const adminName = getAdminDisplayName(auth.session!);
   const { userId, action, context, ...payload } = body;
 
   if (!userId || !action) {
@@ -125,7 +126,12 @@ export async function PATCH(req: Request) {
         targetName: user?.discord_username ?? nickname,
         targetUserId: user?.discord_user_id ?? userId,
         executor: adminName,
-        reason: payload.reason ?? null,
+        reason: payload.reason ?? '사유 없음',
+        leftAt: formatMemberLogDate(),
+        status: '서버에서 추방 처리되었습니다.',
+        avatarUrl: user?.discord_user_id
+          ? discordDefaultAvatarUrl(user.discord_user_id)
+          : null,
         kind: 'kick',
       });
       break;
@@ -144,6 +150,11 @@ export async function PATCH(req: Request) {
         targetUserId: user?.discord_user_id ?? userId,
         executor: adminName,
         reason: '관리자 탈퇴 처리',
+        leftAt: formatMemberLogDate(),
+        status: '서버에서 자진 탈퇴했습니다.',
+        avatarUrl: user?.discord_user_id
+          ? discordDefaultAvatarUrl(user.discord_user_id)
+          : null,
         kind: 'leave',
       });
       break;

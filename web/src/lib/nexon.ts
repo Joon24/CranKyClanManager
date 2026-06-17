@@ -1,10 +1,9 @@
 import type { RecentMatch } from '@shared/types';
 import { stripClanPrefixFromNickname } from '@shared/types';
 
-/** 의심지표·KD·승률 계산에 사용하는 최근 경기 수 */
+/** 최근 경기 조회·KD·승률·의심지표 계산에 사용하는 경기 수 */
 export const MATCH_SAMPLE_SIZE = 20;
-/** UI 카드에 표시할 최근 경기 수 */
-export const MATCH_DISPLAY_SIZE = 10;
+export const MATCH_DISPLAY_SIZE = 20;
 
 export interface NexonMatchStats {
   ouid: string;
@@ -14,7 +13,7 @@ export interface NexonMatchStats {
   kd: number;
   winRate: number;
   avgKills: number;
-  /** 최근 10경기 — 전적 카드·클랜원 관리 표시용 */
+  /** 최근 20경기 — KD·승률·전적 카드 표시용 */
   displayKd: number;
   displayWinRate: number;
   rankName: string;

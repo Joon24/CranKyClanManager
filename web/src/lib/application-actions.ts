@@ -155,7 +155,7 @@ export async function approveApplication({ applicationId, adminName }: ApprovePa
 
   await logActivity('관리자 승인', `${app.sudden_nickname} 승인`, user.id, adminName);
   await logActivity('서버 별명 변경', botResult.serverNickname, user.id, adminName);
-  await logActivity('역할 지급', '멤버 역할 지급', user.id, adminName);
+  await logActivity('역할 지급', '미인증 해제 및 클랜원 역할 지급', user.id, adminName);
 
   return { ...botResult, applicationId, status: 'approved' as const };
 }

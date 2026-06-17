@@ -109,7 +109,7 @@ export async function getRecentMatches(
   ouid: string,
   matchMode = '폭파미션',
   matchType?: string,
-  count = 10
+  count = 20
 ): Promise<Array<Record<string, unknown>>> {
   const list = (await getMatchList(ouid, matchMode, matchType)) as Array<{ match_id: string }>;
   const recent = list.slice(0, count);

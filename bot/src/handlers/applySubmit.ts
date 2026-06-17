@@ -65,6 +65,8 @@ export async function handleApplyModalSubmit(interaction: ModalSubmitInteraction
     return;
   }
 
+  await interaction.deferReply({ ephemeral: true });
+
   const { previousClan, joinSource } = parseExtraInfo(extraRaw);
 
   const { data: existing } = await supabase
@@ -77,15 +79,11 @@ export async function handleApplyModalSubmit(interaction: ModalSubmitInteraction
     .maybeSingle();
 
   if (existing) {
-    await interaction.reply({
+    await interaction.editReply({
       content: '❌ 이미 검토 중인 가입 신청이 있습니다. 관리자 승인을 기다려 주세요.',
-      ephemeral: true,
     });
     return;
   }
-
-  const ouid = await lookupOuid(suddenNickname);
-  const apiCheckStatus = ouid ? 'success' : process.env.NEXON_OPEN_API_KEY ? 'not_found' : 'pending';
 
   const { error } = await supabase.from('applications').insert({
     discord_user_id: interaction.user.id,
@@ -95,22 +93,20 @@ export async function handleApplyModalSubmit(interaction: ModalSubmitInteraction
     main_time: mainTime,
     previous_clan: previousClan,
     join_source: joinSource,
-    api_check_status: apiCheckStatus,
+    api_check_status: 'pending',
     status: 'pending',
   });
 
   if (error) {
     console.error('Failed to save application:', error);
     if (error.code === '23505') {
-      await interaction.reply({
+      await interaction.editReply({
         content: '❌ 이미 검토 중인 가입 신청이 있습니다. 관리자 승인을 기다려 주세요.',
-        ephemeral: true,
       });
       return;
     }
-    await interaction.reply({
+    await interaction.editReply({
       content: '❌ 신청 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
-      ephemeral: true,
     });
     return;
   }
@@ -120,7 +116,6 @@ export async function handleApplyModalSubmit(interaction: ModalSubmitInteraction
       discord_user_id: interaction.user.id,
       discord_username: interaction.user.username,
       sudden_nickname: suddenNickname,
-      ouid,
       age,
       position,
       status: 'pending',
@@ -146,7 +141,7 @@ export async function handleApplyModalSubmit(interaction: ModalSubmitInteraction
     { name: 'Discord', value: `<@${interaction.user.id}>`, inline: false },
   ]);
 
-  await interaction.reply({
+  await interaction.editReply({
     content: [
       '✅ **가입 신청이 접수되었습니다!**',
       '',
@@ -157,6 +152,22 @@ export async function handleApplyModalSubmit(interaction: ModalSubmitInteraction
       '',
       '관리자 검토 후 DM으로 결과를 안내드립니다.',
     ].join('\n'),
-    ephemeral: true,
   });
+
+  void resolveApplicationApiCheck(interaction.user.id, suddenNickname);
+}
+
+async function resolveApplicationApiCheck(discordUserId: string, suddenNickname: string) {
+  const ouid = await lookupOuid(suddenNickname);
+  const apiCheckStatus = ouid ? 'success' : process.env.NEXON_OPEN_API_KEY ? 'not_found' : 'pending';
+
+  await supabase
+    .from('applications')
+    .update({ api_check_status: apiCheckStatus })
+    .eq('discord_user_id', discordUserId)
+    .eq('status', 'pending');
+
+  if (ouid) {
+    await supabase.from('users').update({ ouid }).eq('discord_user_id', discordUserId);
+  }
 }

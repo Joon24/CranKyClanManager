@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/api-auth';
 import { supabase } from '@/lib/supabase';
 import {
-  balanceQuickLobbies,
+  balanceQuickTeams,
   type BalanceMode,
   type MemberWithStats,
+  type QuickType,
 } from '@/lib/team-balance';
+
+const QUICK_TYPES: QuickType[] = ['33', '44', '55'];
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin();
@@ -13,10 +16,16 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const mode: BalanceMode = body.mode ?? 'kd';
+  const quickType: QuickType = body.quickType ?? '44';
+  const quickCount = Number(body.quickCount ?? 2);
   const memberIds: string[] = body.memberIds ?? [];
 
-  if (memberIds.length < 2) {
-    return NextResponse.json({ error: '최소 2명 이상 선택해 주세요.' }, { status: 400 });
+  if (!QUICK_TYPES.includes(quickType)) {
+    return NextResponse.json({ error: '퀵 타입은 33·44·55 중 하나여야 합니다.' }, { status: 400 });
+  }
+
+  if (!Number.isInteger(quickCount) || quickCount < 1 || quickCount > 20) {
+    return NextResponse.json({ error: '퀵 수는 1~20 사이 정수여야 합니다.' }, { status: 400 });
   }
 
   const { data, error } = await supabase
@@ -35,7 +44,7 @@ export async function POST(req: NextRequest) {
   })) as MemberWithStats[];
 
   try {
-    const result = balanceQuickLobbies(members, mode);
+    const result = balanceQuickTeams(members, mode, quickType, quickCount);
     return NextResponse.json(result);
   } catch (e) {
     return NextResponse.json(

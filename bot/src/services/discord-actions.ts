@@ -1,4 +1,4 @@
-import { GuildMember, PermissionFlagsBits, type Client } from 'discord.js';
+import { GuildMember, PermissionFlagsBits, type Client, type Guild } from 'discord.js';
 import { buildServerNickname, type Position } from '../types/index.js';
 import { config } from '../config.js';
 
@@ -7,6 +7,96 @@ class DiscordActionError extends Error {
     super(message);
     this.name = 'DiscordActionError';
   }
+}
+
+function resolveUnverifiedRole(guild: Guild) {
+  const byId = guild.roles.cache.get(config.unverifiedRoleId);
+  if (byId) return byId;
+  return guild.roles.cache.find((role) => role.name === '미인증') ?? null;
+}
+
+function canBotManageRole(botMember: GuildMember, targetRoleId: string) {
+  const targetRole = botMember.guild.roles.cache.get(targetRoleId);
+  if (!targetRole) return { ok: false, reason: '역할을 찾을 수 없습니다.' };
+  if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+    return { ok: false, reason: '봇에 "역할 관리" 권한이 없습니다.' };
+  }
+  if (targetRole.position >= botMember.roles.highest.position) {
+    return { ok: false, reason: `역할 "${targetRole.name}"이(가) 봇 역할보다 높습니다.` };
+  }
+  return { ok: true, role: targetRole };
+}
+
+export async function assignUnverifiedRole(member: GuildMember) {
+  if (member.user.bot) return { assigned: false, reason: 'bot' };
+
+  const unverifiedRole = resolveUnverifiedRole(member.guild);
+  if (!unverifiedRole) {
+    console.warn('[roles] 미인증 역할을 찾을 수 없습니다.');
+    return { assigned: false, reason: 'not_found' };
+  }
+
+  if (member.roles.cache.has(unverifiedRole.id)) {
+    return { assigned: false, reason: 'already_has' };
+  }
+
+  const botMember = await member.guild.members.fetchMe();
+  const check = canBotManageRole(botMember, unverifiedRole.id);
+  if (!check.ok) {
+    console.warn(`[roles] 미인증 역할 부여 실패: ${check.reason}`);
+    return { assigned: false, reason: check.reason };
+  }
+
+  await member.roles.add(unverifiedRole.id);
+  console.log(`[roles] 미인증 역할 부여: ${member.user.tag}`);
+  return { assigned: true };
+}
+
+export async function removeUnverifiedRole(member: GuildMember) {
+  const unverifiedRole = resolveUnverifiedRole(member.guild);
+  if (!unverifiedRole || !member.roles.cache.has(unverifiedRole.id)) {
+    return { removed: false };
+  }
+
+  const botMember = await member.guild.members.fetchMe();
+  const check = canBotManageRole(botMember, unverifiedRole.id);
+  if (!check.ok) {
+    console.warn(`[roles] 미인증 역할 제거 실패: ${check.reason}`);
+    return { removed: false, reason: check.reason };
+  }
+
+  await member.roles.remove(unverifiedRole.id);
+  console.log(`[roles] 미인증 역할 제거: ${member.user.tag}`);
+  return { removed: true };
+}
+
+export async function stripClanRoles(member: GuildMember) {
+  const clanRoleIds = [
+    config.memberRoleId,
+    config.enthusiastRoleId,
+    config.staffRoleId,
+    config.mercenaryRoleId,
+  ].filter(Boolean);
+
+  const rolesToRemove = clanRoleIds.filter((roleId) => member.roles.cache.has(roleId));
+  if (rolesToRemove.length === 0) return { removed: false };
+
+  const botMember = await member.guild.members.fetchMe();
+  if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+    console.warn('[roles] 클랜 역할 제거 실패: 봇에 "역할 관리" 권한이 없습니다.');
+    return { removed: false, reason: 'no_permission' };
+  }
+
+  const removable = rolesToRemove.filter((roleId) => {
+    const role = member.guild.roles.cache.get(roleId);
+    return role && role.position < botMember.roles.highest.position;
+  });
+
+  if (removable.length === 0) return { removed: false };
+
+  await member.roles.remove(removable);
+  console.log(`[roles] 클랜 역할 제거: ${member.user.tag}`);
+  return { removed: true, roleIds: removable };
 }
 
 function formatDiscordError(error: unknown, action: string): string {
@@ -86,6 +176,15 @@ export async function approveMember(
     }
   }
 
+  try {
+    const unverifiedResult = await removeUnverifiedRole(member);
+    if (unverifiedResult.reason) {
+      issues.push(`미인증 역할 제거 실패: ${unverifiedResult.reason}`);
+    }
+  } catch (error) {
+    issues.push(formatDiscordError(error, '미인증 역할 제거'));
+  }
+
   if (!nicknameOk && !roleOk) {
     throw new DiscordActionError(issues.join('\n'));
   }
@@ -100,6 +199,7 @@ export async function approveMember(
           ? `서버 별명이 ${serverNickname} 으로 변경되었습니다.`
           : '서버 별명 변경은 실패했습니다. 관리자에게 문의해 주세요.',
         roleOk ? '용병 역할이 지급되었습니다.' : '역할 지급은 실패했습니다. 관리자에게 문의해 주세요.',
+        '미인증 역할이 해제되었습니다.',
         '',
         '즐거운 활동 부탁드립니다.',
       ].join('\n')
@@ -111,6 +211,7 @@ export async function approveMember(
           ? `서버 별명이 ${serverNickname} 으로 변경되었습니다.`
           : `서버 별명 변경은 실패했습니다. 관리자에게 문의해 주세요.`,
         roleOk ? '멤버 역할이 지급되었습니다.' : '멤버 역할 지급은 실패했습니다. 관리자에게 문의해 주세요.',
+        '미인증 역할이 해제되었습니다.',
         '',
         '즐거운 활동 부탁드립니다.',
       ].join('\n');

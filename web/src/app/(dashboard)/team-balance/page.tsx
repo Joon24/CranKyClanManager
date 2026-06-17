@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { POSITION_META, type Position } from '@shared/types';
-import { getCompositionHint } from '@/lib/team-balance';
+import {
+  getCompositionHint,
+  getRequiredPlayers,
+  type QuickType,
+} from '@/lib/team-balance';
 
 interface Member {
   id: string;
@@ -12,21 +16,27 @@ interface Member {
   match_stats: { kd: number; tier_name: string } | { kd: number; tier_name: string }[] | null;
 }
 
-interface LobbyResult {
+interface TeamResult {
   quickType: string;
+  quickIndex: number;
+  teamLabel: string;
   label: string;
-  teamA: Member[];
-  teamB: Member[];
-  totalA: number;
-  totalB: number;
+  members: Member[];
+  totalScore: number;
   composition: string;
 }
 
 interface BalanceResult {
-  lobbies: LobbyResult[];
+  teams: TeamResult[];
   reserve: Member[];
   planSummary: string;
 }
+
+const QUICK_TYPES: { type: QuickType; label: string; desc: string }[] = [
+  { type: '33', label: '33', desc: '1퀵 = A팀 3명 · 타 클랜 3v3' },
+  { type: '44', label: '44', desc: '1퀵 = A팀 4명 · 타 클랜 4v4' },
+  { type: '55', label: '55', desc: '1퀵 = A팀 5명 · 타 클랜 5v5' },
+];
 
 const MODES = [
   { key: 'kd' as const, label: 'KD 기준', icon: '🎯', desc: '최근 전적 KD' },
@@ -53,73 +63,39 @@ function getPositionName(position: string) {
   return position;
 }
 
-function LobbyVsCard({ lobby }: { lobby: LobbyResult }) {
-  const totalScore = lobby.totalA + lobby.totalB;
-  const balancePct = totalScore > 0 ? Math.round((lobby.totalA / totalScore) * 100) : 50;
+const TEAM_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#06b6d4'];
+
+function TeamCard({ team, colorIndex }: { team: TeamResult; colorIndex: number }) {
+  const color = TEAM_COLORS[colorIndex % TEAM_COLORS.length];
 
   return (
     <div className="team-lobby-card">
       <div className="team-vs-header">
-        <h3>{lobby.label}</h3>
-        <p className="team-composition-result">{lobby.composition}</p>
-        <div className="team-balance-bar">
-          <div className="team-bar-a" style={{ width: `${balancePct}%` }} />
-          <div className="team-bar-b" style={{ width: `${100 - balancePct}%` }} />
-        </div>
-        <div className="team-balance-labels">
-          <span className="team-label-a">A {balancePct}%</span>
-          <span className="team-label-b">B {100 - balancePct}%</span>
-        </div>
+        <h3>{team.label}</h3>
+        <p className="team-composition-result">{team.composition}</p>
+        <p className="team-composition-note">실력 합계 {team.totalScore}</p>
       </div>
 
-      <div className="team-vs-grid">
-        <div className="team-vs-box team-vs-a">
-          <div className="team-vs-title">
-            <span className="team-vs-icon">🔵</span>
-            Team A
-            <span className="team-vs-score">{lobby.totalA}</span>
-          </div>
-          <ul className="team-vs-list">
-            {lobby.teamA.map((m, i) => (
-              <li key={m.id}>
-                <span className="team-slot">#{i + 1}</span>
-                <span
-                  className="team-pos-mini"
-                  style={{ color: getPositionColor(m.position) }}
-                >
-                  {m.position}
-                </span>
-                {m.sudden_nickname ?? '-'}
-              </li>
-            ))}
-          </ul>
+      <div className="team-single-box" style={{ borderColor: `${color}55` }}>
+        <div className="team-vs-title" style={{ color }}>
+          <span className="team-vs-icon">⚔️</span>
+          {team.teamLabel}
+          <span className="team-vs-score">{team.members.length}명</span>
         </div>
-
-        <div className="team-vs-divider">
-          <span>VS</span>
-        </div>
-
-        <div className="team-vs-box team-vs-b">
-          <div className="team-vs-title">
-            <span className="team-vs-icon">🔴</span>
-            Team B
-            <span className="team-vs-score">{lobby.totalB}</span>
-          </div>
-          <ul className="team-vs-list">
-            {lobby.teamB.map((m, i) => (
-              <li key={m.id}>
-                <span className="team-slot">#{i + 1}</span>
-                <span
-                  className="team-pos-mini"
-                  style={{ color: getPositionColor(m.position) }}
-                >
-                  {m.position}
-                </span>
-                {m.sudden_nickname ?? '-'}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <ul className="team-vs-list">
+          {team.members.map((m, i) => (
+            <li key={m.id}>
+              <span className="team-slot">#{i + 1}</span>
+              <span
+                className="team-pos-mini"
+                style={{ color: getPositionColor(m.position) }}
+              >
+                {m.position}
+              </span>
+              {m.sudden_nickname ?? '-'}
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
@@ -129,6 +105,8 @@ export default function TeamBalancePage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [mode, setMode] = useState<'kd' | 'position' | 'tier'>('kd');
+  const [quickType, setQuickType] = useState<QuickType>('44');
+  const [quickCount, setQuickCount] = useState(1);
   const [result, setResult] = useState<BalanceResult | null>(null);
   const [balancing, setBalancing] = useState(false);
 
@@ -168,23 +146,17 @@ export default function TeamBalancePage() {
   };
 
   const compositionHint = useMemo(
-    () => getCompositionHint(selected.size),
-    [selected.size]
+    () => getCompositionHint(selected.size, quickType, quickCount),
+    [selected.size, quickType, quickCount]
   );
+
+  const requiredPlayers = getRequiredPlayers(quickType, quickCount);
+  const selectedQuick = QUICK_TYPES.find((q) => q.type === quickType)!;
 
   const selectedMembers = useMemo(
     () => members.filter((m) => selected.has(m.id)),
     [members, selected]
   );
-
-  const positionSummary = useMemo(() => {
-    const counts = { S: 0, R: 0, M: 0, T: 0 };
-    for (const m of selectedMembers) {
-      const p = m.position as keyof typeof counts;
-      if (p in counts) counts[p]++;
-    }
-    return counts;
-  }, [selectedMembers]);
 
   const balance = async () => {
     setBalancing(true);
@@ -192,7 +164,7 @@ export default function TeamBalancePage() {
       const res = await fetch('/api/team-balance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, memberIds: [...selected] }),
+        body: JSON.stringify({ mode, quickType, quickCount, memberIds: [...selected] }),
       });
       const data = await res.json();
       if (res.ok) setResult(data);
@@ -202,7 +174,7 @@ export default function TeamBalancePage() {
     }
   };
 
-  const canBalance = selected.size >= 6;
+  const canBalance = selected.size >= requiredPlayers;
 
   return (
     <div className="team-page">
@@ -211,7 +183,7 @@ export default function TeamBalancePage() {
           <p className="dash-hero-badge">Team Balance</p>
           <h1 className="dash-hero-title">팀 밸런스</h1>
           <p className="dash-hero-sub">
-            클랜전 퀵(33·44·55) 자동 구성 · 인원 제한 없음 · 홀수는 대기 처리
+            1퀵 = A팀 · 2퀵 = A+B팀 · 각 팀은 타 클랜과 매칭 (내전 아님)
           </p>
         </div>
         <div className="team-hero-badge-count">
@@ -220,43 +192,89 @@ export default function TeamBalancePage() {
         </div>
       </header>
 
-      <section className="team-modes">
-        {MODES.map((m) => (
+      <section className="team-section">
+        <h2 className="team-section-title">🎮 퀵 타입</h2>
+        <div className="team-modes">
+          {QUICK_TYPES.map((q) => (
+            <button
+              key={q.type}
+              className={`team-mode-card ${quickType === q.type ? 'team-mode-active' : ''}`}
+              onClick={() => {
+                setQuickType(q.type);
+                setResult(null);
+              }}
+            >
+              <span className="team-mode-icon">{q.label}</span>
+              <span className="team-mode-label">{q.label} 퀵</span>
+              <span className="team-mode-desc">{q.desc}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="team-section">
+        <h2 className="team-section-title">🔢 퀵 수</h2>
+        <div className="team-quick-count">
           <button
-            key={m.key}
-            className={`team-mode-card ${mode === m.key ? 'team-mode-active' : ''}`}
+            type="button"
+            className="team-quick-count-btn"
+            disabled={quickCount <= 1}
             onClick={() => {
-              setMode(m.key);
+              setQuickCount((c) => Math.max(1, c - 1));
               setResult(null);
             }}
           >
-            <span className="team-mode-icon">{m.icon}</span>
-            <span className="team-mode-label">{m.label}</span>
-            <span className="team-mode-desc">{m.desc}</span>
+            −
           </button>
-        ))}
+          <div className="team-quick-count-display">
+            <span className="team-quick-count-num">{quickCount}</span>
+            <span className="team-quick-count-label">
+              퀵 · {requiredPlayers}명 · {quickCount}팀
+            </span>
+          </div>
+          <button
+            type="button"
+            className="team-quick-count-btn"
+            disabled={quickCount >= 20}
+            onClick={() => {
+              setQuickCount((c) => Math.min(20, c + 1));
+              setResult(null);
+            }}
+          >
+            +
+          </button>
+        </div>
+        <p className="team-composition-note" style={{ marginTop: 8 }}>
+          {quickType} {quickCount}퀵 = {quickCount === 1 ? 'A팀' : quickCount === 2 ? 'A팀 + B팀' : `A~${String.fromCharCode(64 + quickCount)}팀`} · 총 {requiredPlayers}명
+        </p>
       </section>
 
-      <section className="team-composition-guide">
-        <h3>📋 클랜전 퀵 포지션 규칙</h3>
-        <ul>
-          <li><strong>33 (3v3 · 6명)</strong> — 팀당 S 1 + R/M/T 2</li>
-          <li><strong>44 (4v4 · 8명)</strong> — 팀당 S 1 · M 1 + R/T 2</li>
-          <li><strong>55 (5v5 · 10명)</strong> — 팀당 S 2 + R/M/T 3</li>
-        </ul>
-        <p className="team-composition-note">
-          예: 32명 → 33×1 · 44×2 · 55×1 &nbsp;|&nbsp; 12명 → 33×2
-        </p>
-        {selected.size > 0 && (
-          <p className="team-composition-status">
-            선택 {selected.size}명 · S {positionSummary.S} / R {positionSummary.R} / M{' '}
-            {positionSummary.M} / T {positionSummary.T}
-            {compositionHint ? ` · ${compositionHint}` : ' · 6명 미만 — 분배 불가'}
-          </p>
-        )}
+      <section className="team-section">
+        <h2 className="team-section-title">⚖️ 밸런스 기준</h2>
+        <div className="team-modes">
+          {MODES.map((m) => (
+            <button
+              key={m.key}
+              className={`team-mode-card ${mode === m.key ? 'team-mode-active' : ''}`}
+              onClick={() => {
+                setMode(m.key);
+                setResult(null);
+              }}
+            >
+              <span className="team-mode-icon">{m.icon}</span>
+              <span className="team-mode-label">{m.label}</span>
+              <span className="team-mode-desc">{m.desc}</span>
+            </button>
+          ))}
+        </div>
       </section>
 
       <section className="team-panel">
+        {selected.size > 0 && compositionHint && (
+          <p className="team-composition-status" style={{ marginBottom: 16 }}>
+            선택 {selected.size}명 · {compositionHint}
+          </p>
+        )}
         <div className="team-panel-header">
           <h2>👥 클랜원 선택</h2>
           <div className="team-select-actions">
@@ -311,7 +329,9 @@ export default function TeamBalancePage() {
           onClick={balance}
           disabled={!canBalance || balancing}
         >
-          {balancing ? '분배 중...' : `⚔️ 자동 분배 (${selected.size}명)`}
+          {balancing
+            ? '분배 중...'
+            : `⚔️ ${selectedQuick.label} ${quickCount}퀵 분배 (${selected.size}명)`}
         </button>
       </section>
 
@@ -322,15 +342,15 @@ export default function TeamBalancePage() {
             <p className="team-composition-result">{result.planSummary}</p>
           </div>
 
-          {result.lobbies.map((lobby) => (
-            <LobbyVsCard key={lobby.label} lobby={lobby} />
+          {result.teams.map((team, i) => (
+            <TeamCard key={team.label} team={team} colorIndex={i} />
           ))}
 
           {result.reserve.length > 0 && (
             <div className="team-reserve-panel">
               <h3>⏸️ 대기 ({result.reserve.length}명)</h3>
               <p className="team-composition-note">
-                홀수 인원 또는 로비 구성 후 남은 멤버입니다.
+                필요 인원을 초과해 선택한 멤버입니다.
               </p>
               <ul className="team-vs-list">
                 {result.reserve.map((m) => (

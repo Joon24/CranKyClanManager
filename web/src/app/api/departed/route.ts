@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/api-auth';
+import { requireAdmin, getAdminDisplayName } from '@/lib/api-auth';
 import { supabase, logActivity } from '@/lib/supabase';
 import { adminWebhook } from '@/lib/webhook';
 import { botBan, botUnban } from '@/lib/bot-api';
@@ -82,7 +82,7 @@ export async function PATCH(req: Request) {
   if (auth.error) return auth.error;
 
   const body = await req.json();
-  const adminName = auth.session!.user!.username ?? '관리자';
+  const adminName = getAdminDisplayName(auth.session!);
   const { action, userId, discordUserId, reason, nickname } = body;
 
   if (!action) {

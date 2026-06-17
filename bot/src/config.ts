@@ -18,6 +18,7 @@ export const config = {
   guildId: required('DISCORD_GUILD_ID'),
   authChannelId: required('DISCORD_AUTH_CHANNEL_ID'),
   memberRoleId: required('DISCORD_MEMBER_ROLE_ID', process.env.DISCORD_VERIFIED_ROLE_ID),
+  unverifiedRoleId: optional('DISCORD_UNVERIFIED_ROLE_ID') || '1489904497781117048',
   enthusiastRoleId: optional('DISCORD_ENTHUSIAST_ROLE_ID') || '1489852005005656064',
   staffRoleId: optional('DISCORD_STAFF_ROLE_ID') || '1489797598133882910',
   mercenaryRoleId: optional('DISCORD_MERCENARY_ROLE_ID'),
@@ -31,6 +32,13 @@ export const config = {
   leaveWebhookUrl: optional('DISCORD_LEAVE_WEBHOOK_URL'),
   nexonApiKey: optional('NEXON_OPEN_API_KEY'),
   statusReportChannelId: optional('STATUS_REPORT_CHANNEL_ID'),
+  welcomeChannelId: optional('DISCORD_WELCOME_CHANNEL_ID', 'WELCOME_CHANNEL_ID'),
+  noticeChannelId: optional('DISCORD_NOTICE_CHANNEL_ID'),
+  adminLogChannelId: optional('DISCORD_ADMIN_LOG_CHANNEL_ID', 'LOG_CHANNEL_ID'),
+  adminRoleIds: (optional('DISCORD_ADMIN_ROLE_IDS') || '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean),
   botApiPort: parseInt(process.env.PORT ?? process.env.BOT_API_PORT ?? '3001', 10),
   internalApiSecret: required('INTERNAL_API_SECRET'),
 };

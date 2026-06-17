@@ -20,7 +20,7 @@ function buildAuthEmbed() {
       [
         'CranKy 클랜에 오신 것을 환영합니다!',
         '',
-        '**📝 신청하기** — 정규 가입 신청 (관리자 승인 필요)',
+        '**📝 클랜원 신청** — 정규 가입 신청 (관리자 승인 필요)',
         '**⚔️ 용병 신청** — 즉시 자동 승인 (별명·역할 자동 지급)',
         '• 초대한 지인을 @멘션으로 선택',
         '• 서버 별명은 `지인닉인맥` 형식 (예: 랜딩 → 랜딩인맥)',
@@ -41,7 +41,7 @@ function buildAuthButtons() {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(APPLY_BUTTON_ID)
-      .setLabel('신청하기')
+      .setLabel('클랜원 신청')
       .setStyle(ButtonStyle.Primary)
       .setEmoji('📝'),
     new ButtonBuilder()
@@ -69,18 +69,8 @@ export async function setupAuthChannel(client: Client) {
   const row = buildAuthButtons();
 
   if (existing) {
-    const hasMercenary = existing.components.some((row) =>
-      'components' in row &&
-      row.components.some(
-        (c) => 'customId' in c && c.customId === MERCENARY_BUTTON_ID
-      )
-    );
-    if (!hasMercenary) {
-      await existing.edit({ embeds: [embed], components: [row] });
-      console.log('Auth channel message updated with mercenary button');
-    } else {
-      console.log('Auth channel message already exists');
-    }
+    await existing.edit({ embeds: [embed], components: [row] });
+    console.log('Auth channel message updated');
     return;
   }
 

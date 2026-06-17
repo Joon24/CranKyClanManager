@@ -1,6 +1,7 @@
 import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
 import { config } from './config.js';
 import { setupAuthChannel } from './handlers/setupAuthChannel.js';
+import { setupNoticeChannel } from './handlers/notice/setupNoticeChannel.js';
 import { isApplyButton, buildApplyModal, isApplyModal } from './handlers/applyModal.js';
 import { handleApplyModalSubmit } from './handlers/applySubmit.js';
 import {
@@ -17,8 +18,17 @@ import { handleMemberLeave } from './handlers/memberLeave.js';
 import { handleMemberJoin } from './handlers/memberJoin.js';
 import { startInternalApi } from './server/internal-api.js';
 import { registerSlashCommands } from './commands/registerCommands.js';
-import { executeSaCommand } from './commands/sa.js';
 import { preloadMeta } from './api/suddenApi.js';
+import {
+  handleNoticeConfirm,
+  handleNoticeEditButton,
+  handleNoticeEditModal,
+  handleNoticeEditSelect,
+  isNoticeConfirmButton,
+  isNoticeEditButton,
+  isNoticeEditModal,
+  isNoticeEditSelect,
+} from './handlers/notice/handlers.js';
 
 const client = new Client({
   intents: [
@@ -31,10 +41,13 @@ const client = new Client({
   partials: [Partials.GuildMember],
 });
 
+// Railway 헬스체크: Discord 로그인 전에 Internal API를 먼저 띄움
+startInternalApi(client);
+
 client.once(Events.ClientReady, async (c) => {
   console.log(`Bot ready: ${c.user.tag}`);
-  startInternalApi(client);
   await setupAuthChannel(client);
+  await setupNoticeChannel(client);
   await registerSlashCommands(c);
   if (config.nexonApiKey) {
     await preloadMeta().catch((err) => console.error('Meta preload error:', err));
@@ -60,7 +73,14 @@ client.on(Events.GuildMemberRemove, async (member) => {
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if (interaction.isChatInputCommand() && interaction.commandName === 'sa') {
+      const { executeSaCommand } = await import('./commands/sa.js');
       await executeSaCommand(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === '공지사항') {
+      const { executeNoticeCommand } = await import('./commands/notice.js');
+      await executeNoticeCommand(interaction);
       return;
     }
 
@@ -71,6 +91,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.isButton() && isMercenaryButton(interaction.customId)) {
       await handleMercenaryButton(interaction);
+      return;
+    }
+
+    if (interaction.isButton() && isNoticeConfirmButton(interaction.customId)) {
+      await handleNoticeConfirm(interaction);
+      return;
+    }
+
+    if (interaction.isButton() && isNoticeEditButton(interaction.customId)) {
+      await handleNoticeEditButton(interaction);
+      return;
+    }
+
+    if (interaction.isStringSelectMenu() && isNoticeEditSelect(interaction.customId)) {
+      await handleNoticeEditSelect(interaction);
       return;
     }
 
@@ -86,6 +121,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.isModalSubmit() && isMercenaryModal(interaction.customId)) {
       await handleMercenaryModalSubmit(interaction);
+      return;
+    }
+
+    if (interaction.isModalSubmit() && isNoticeEditModal(interaction.customId)) {
+      await handleNoticeEditModal(interaction);
       return;
     }
   } catch (error) {

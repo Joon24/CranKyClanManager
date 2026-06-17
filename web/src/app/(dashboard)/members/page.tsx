@@ -189,7 +189,7 @@ export default function MembersPage() {
             {syncingDiscord ? 'Discord 불러오는 중...' : 'Discord 멤버 동기화'}
           </button>
           <button className="btn btn-primary" onClick={() => syncStats()} disabled={busy}>
-            {syncingStats ? '전적 갱신 중...' : '전적 갱신 (최근 10경기)'}
+            {syncingStats ? '전적 갱신 중...' : '전적 갱신 (최근 20경기)'}
           </button>
         </div>
       </div>
@@ -206,7 +206,7 @@ export default function MembersPage() {
 
       <p className="disclaimer" style={{ marginBottom: 16 }}>
         클랜원 · 열혈클랜원 · 운영진 역할을 가진 Discord 멤버를 「Discord 멤버 동기화」로
-        불러옵니다. KD · 승률은 최근 10경기, 의심지표는 최근 20판 기준입니다.
+        불러옵니다. KD · 승률 · 의심지표는 최근 20경기 기준입니다.
       </p>
 
       <div className="members-toolbar">

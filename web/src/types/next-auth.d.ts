@@ -1,4 +1,4 @@
-import type { DefaultSession } from 'next-auth';
+import type { DefaultSession, Session } from 'next-auth';
 
 declare module 'next-auth' {
   interface Session {
@@ -6,6 +6,7 @@ declare module 'next-auth' {
     user: {
       discordId?: string;
       username?: string;
+      serverNickname?: string;
     } & DefaultSession['user'];
   }
 }
@@ -15,6 +16,7 @@ declare module 'next-auth/jwt' {
     accessToken?: string;
     discordId?: string;
     username?: string;
+    serverNickname?: string;
     name?: string;
     displayName?: string;
     picture?: string;

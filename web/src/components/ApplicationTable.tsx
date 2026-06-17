@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { usePolling } from '@/hooks/usePolling';
 import { StatusBadge } from './SuspicionBadge';
 import { dedupeApplications } from '@/lib/application-dedupe';
 import { POSITION_META, buildServerNickname, type Position } from '@shared/types';
@@ -118,6 +119,8 @@ export function ApplicationTable() {
     load();
   }, [load]);
 
+  usePolling(() => load(true), 3000);
+
   const counts = TABS.reduce(
     (acc, t) => {
       acc[t.key] =
@@ -163,7 +166,7 @@ export function ApplicationTable() {
           <p className="dash-hero-badge">Application Management</p>
           <h1 className="dash-hero-title">가입 신청 관리</h1>
           <p className="dash-hero-sub">
-            신청 검토 · 승인 · 거절 · 보류 · 블랙리스트 처리
+            신청 검토 · 승인 · 거절 · 보류 · 블랙리스트 처리 · 3초마다 자동 갱신
           </p>
         </div>
         <div className="app-hero-stats">

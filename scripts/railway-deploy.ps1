@@ -1,4 +1,4 @@
-# Railway 봇 배포 + Vercel BOT_API_URL 연동
+# Railway 배포 스크립트
 # 사전: railway login 완료 필요
 
 $ErrorActionPreference = "Stop"
@@ -31,6 +31,8 @@ try {
     Write-Host "Railway 프로젝트 생성/연결..."
     railway init --name cranky-clan-bot
   }
+
+  railway service link cranky-clan-bot 2>$null
 
   Write-Host "환경 변수 등록..."
   $lines = Get-Content $EnvFile | Where-Object { $_ -match '^\s*[^#=]+\=' }

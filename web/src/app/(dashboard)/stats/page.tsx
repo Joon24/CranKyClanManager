@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { MatchRecordCard } from '@/components/MatchRecordCard';
 import { SuspicionBadge } from '@/components/SuspicionBadge';
 import type { RecentMatch, SuspicionLevel } from '@shared/types';
@@ -20,18 +21,21 @@ interface StatsResult {
 }
 
 export default function StatsPage() {
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<StatsResult | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const search = async () => {
-    if (!query.trim()) return;
+  const runSearch = useCallback(async (term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed) return;
+    setQuery(trimmed);
     setError('');
     setResult(null);
     setLoading(true);
     try {
-      const res = await fetch(`/api/stats/${encodeURIComponent(query.trim())}`);
+      const res = await fetch(`/api/stats/${encodeURIComponent(trimmed)}`);
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? '조회 실패');
@@ -43,7 +47,12 @@ export default function StatsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const q = searchParams.get('q')?.trim();
+    if (q) runSearch(q);
+  }, [searchParams, runSearch]);
 
   return (
     <div className="stats-page">
@@ -60,11 +69,11 @@ export default function StatsPage() {
             placeholder="서든어택 닉네임 또는 OUID"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && search()}
+            onKeyDown={(e) => e.key === 'Enter' && runSearch(query)}
           />
           <button
             className="stats-search-btn"
-            onClick={search}
+            onClick={() => runSearch(query)}
             disabled={loading || !query.trim()}
           >
             {loading ? '조회 중...' : '조회'}
@@ -116,7 +125,7 @@ export default function StatsPage() {
               <span>·</span>
               <span>KD {result.displayKd}</span>
               <span>·</span>
-              <span>승률 {result.displayWinRate}% (최근 10경기)</span>
+              <span>승률 {result.displayWinRate}% (최근 20경기)</span>
             </div>
             <div className="stats-suspicion-inline">
               <span className="stats-suspicion-label">의심 지표</span>

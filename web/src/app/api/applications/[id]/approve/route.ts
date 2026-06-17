@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/api-auth';
+import { requireAdmin, getAdminDisplayName } from '@/lib/api-auth';
 import { approveApplication } from '@/lib/application-actions';
 
 export async function POST(
@@ -10,7 +10,7 @@ export async function POST(
   if (auth.error) return auth.error;
 
   const { id } = await params;
-  const adminName = auth.session!.user!.username ?? auth.session!.user!.name ?? '관리자';
+  const adminName = getAdminDisplayName(auth.session!);
 
   try {
     const result = await approveApplication({

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/api-auth';
 import { supabase } from '@/lib/supabase';
-import { fetchMatchStats, fetchOuid, MATCH_DISPLAY_SIZE, MATCH_SAMPLE_SIZE } from '@/lib/nexon';
+import { fetchMatchStats, fetchOuid, MATCH_SAMPLE_SIZE } from '@/lib/nexon';
 import { calculateSuspicion } from '@/lib/suspicion';
 import { syncMemberStats, syncMemberStatsByNickname } from '@/lib/match-stats-sync';
 
@@ -62,7 +62,7 @@ export async function GET(
       suspicion,
       matchSampleSize: MATCH_SAMPLE_SIZE,
       syncedMember,
-      disclaimer: `KD · 승률은 최근 ${MATCH_DISPLAY_SIZE}경기, 의심지표는 최근 ${MATCH_SAMPLE_SIZE}판 기준 참고용입니다. 공식 제재 확인이 아닙니다.`,
+      disclaimer: `KD · 승률 · 의심지표는 최근 ${MATCH_SAMPLE_SIZE}경기 기준 참고용입니다. 공식 제재 확인이 아닙니다.`,
     });
   }
 
@@ -78,7 +78,7 @@ export async function GET(
           suspicion,
           matchSampleSize: MATCH_SAMPLE_SIZE,
           syncedMember,
-          disclaimer: `KD · 승률은 최근 ${MATCH_DISPLAY_SIZE}경기, 의심지표는 최근 ${MATCH_SAMPLE_SIZE}판 기준 참고용입니다. 공식 제재 확인이 아닙니다.`,
+          disclaimer: `KD · 승률 · 의심지표는 최근 ${MATCH_SAMPLE_SIZE}경기 기준 참고용입니다. 공식 제재 확인이 아닙니다.`,
         });
       }
     }
@@ -96,6 +96,6 @@ export async function GET(
     suspicion,
     matchSampleSize: MATCH_SAMPLE_SIZE,
     syncedMember,
-    disclaimer: `KD · 승률은 최근 ${MATCH_DISPLAY_SIZE}경기, 의심지표는 최근 ${MATCH_SAMPLE_SIZE}판 기준 참고용입니다. 공식 제재 확인이 아닙니다.`,
+    disclaimer: `KD · 승률 · 의심지표는 최근 ${MATCH_SAMPLE_SIZE}경기 기준 참고용입니다. 공식 제재 확인이 아닙니다.`,
   });
 }
